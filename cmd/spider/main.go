@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/bson"
@@ -18,6 +19,10 @@ import (
 )
 
 func main() {
+	threshold := flag.Int("threshold", 100, "Maximum number of pages to crawl")
+
+	flag.Parse()
+
 	// DATABASE SETUP
 	dbAccess := true
 	if godotenv.Load() != nil {
@@ -75,7 +80,7 @@ func main() {
 	}
 
 	// Kick-start the crawling flow...
-	for urlFrontier.Size() > 0 && urlFrontier.TotalProcessedUrls() <= 100 {
+	for urlFrontier.Size() > 0 && urlFrontier.TotalProcessedUrls() <= *threshold {
 		urlItem := urlFrontier.Dequeue()
 
 		nUrl, err := filter.NormalizeUrl(urlItem)
