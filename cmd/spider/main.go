@@ -10,22 +10,31 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
 	"strconv"
+	"time"
 	"web-spider/internal/database/mongodb"
 	"web-spider/internal/filter"
 	"web-spider/internal/frontier"
+	"web-spider/internal/metrics"
 	"web-spider/internal/parser"
 	"web-spider/internal/spider"
 	"web-spider/pkg/logger"
 )
 
 func main() {
-	threshold := flag.Int("threshold", 100, "Maximum number of pages to crawl")
+	env := flag.String("env", "prod", "Application environment.")
+	threshold := flag.Int("threshold", 100, "Maximum number of pages to crawl.")
 
 	flag.Parse()
 
 	// DATABASE SETUP
 	dbAccess := true
-	if godotenv.Load() != nil {
+	var loading error
+	if *env == "test" {
+		loading = godotenv.Load(".env.test")
+	} else {
+		loading = godotenv.Load(".env")
+	}
+	if loading != nil {
 		logger.Error("Error loading .env file. Preventing access to crawler dataset.")
 		dbAccess = false
 	}
@@ -69,6 +78,22 @@ func main() {
 		"https://wikipedia.org",
 	}
 
+	// STATS SETUP
+	crawlerStats := metrics.NewCrawlerStats()
+	done := make(chan bool)
+	ticker := time.NewTicker(10 * time.Second)
+
+	go func() {
+		for {
+			select {
+			case <-done:
+				return
+			case t := <-ticker.C:
+				crawlerStats.CrawlingPerMinuteRate(&urlFrontier, &crawlerSet, t)
+			}
+		}
+	}()
+
 	for _, seed := range seeds {
 		nUrl, err := filter.NormalizeUrl(seed)
 		if err != nil {
@@ -77,10 +102,13 @@ func main() {
 
 		urlFrontier.Enqueue(nUrl)
 		crawlerSet.Add(nUrl)
+
+		crawlerStats.TotalSeen++
+		crawlerStats.UniqueEnqueued++
 	}
 
 	// Kick-start the crawling flow...
-	for urlFrontier.Size() > 0 && urlFrontier.TotalProcessedUrls() <= *threshold {
+	for urlFrontier.Size() > 0 && urlFrontier.TotalProcessedUrls() < *threshold {
 		urlItem := urlFrontier.Dequeue()
 
 		nUrl, err := filter.NormalizeUrl(urlItem)
@@ -89,11 +117,9 @@ func main() {
 			continue
 		}
 
-		log.Printf("🔎 Normalize check: raw=%s normalized=%s", urlItem, nUrl)
-
 		fmt.Println("Crawling: `" + nUrl + "` - Crawling count: " + strconv.Itoa(crawlerSet.Size()))
 
-		rawMarkup, err := spider.DownloadHTML(nUrl)
+		rawMarkup, err := spider.DownloadHTML(nUrl, crawlerStats)
 		if err != nil {
 			fmt.Println(err)
 			continue
@@ -111,11 +137,14 @@ func main() {
 		}
 		if wp.Text == "" && len(wp.Links) == 0 {
 			logger.Warn(fmt.Sprintf("Skipping empty page: %s\n", wp.Url))
+			crawlerStats.EmptyPages++
 			continue
 		}
 
-		dbConnection.InsertWebPage(wp)
-		crawlerSet.Add(nUrl)
+		resultOp := dbConnection.InsertWebPage(wp, crawlerStats)
+		if resultOp {
+			crawlerSet.Add(nUrl)
+		}
 
 		for _, link := range wp.Links {
 			url, err := filter.NormalizeUrl(link)
@@ -125,13 +154,35 @@ func main() {
 			}
 
 			if !crawlerSet.Contains(url) {
+				if crawlerStats.UniqueEnqueued >= *threshold {
+					break
+				}
 				urlFrontier.Enqueue(url)
+
+				crawlerStats.TotalSeen++
+				crawlerStats.UniqueEnqueued++
 			} else {
 				logger.Info(fmt.Sprintf("Skipping: `%s` is already discovered.", url))
+				crawlerStats.SkippedDuplicates++
 			}
 		}
 	}
 
-	logger.Info(fmt.Sprintf("\n\nTotal Procesed: `%d`\n\n", urlFrontier.TotalProcessed))
+	logger.Info(fmt.Sprintf("\n\nTotal Procesed: `%d`\n\n", urlFrontier.TotalProcessedUrls()))
+	ticker.Stop()
+	done <- true
 
+	logger.Info(fmt.Sprintf("Raw Stats → TotalSeen: %d, UniqueEnqueued: %d, DBInserted: %d, DBInsertAttempts: %d, FailedInserts: %d, HTMLPages: %d, EmptyPages: %d, SkippedDuplicates: %d, HTTPErrors: %d",
+		crawlerStats.TotalSeen,
+		crawlerStats.UniqueEnqueued,
+		crawlerStats.DBInserted,
+		crawlerStats.DBInsertAttempts,
+		crawlerStats.FailedInserts,
+		crawlerStats.HTMLPages,
+		crawlerStats.EmptyPages,
+		crawlerStats.SkippedDuplicates,
+		crawlerStats.HTTPErrors,
+	))
+	crawlerStats.PrintTimingStats()
+	crawlerStats.PrintGeneralStats()
 }

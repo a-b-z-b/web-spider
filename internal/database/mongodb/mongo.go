@@ -6,6 +6,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"os"
+	"web-spider/internal/metrics"
 	"web-spider/internal/models"
 	"web-spider/pkg/logger"
 )
@@ -39,11 +40,13 @@ func (db *DatabaseConnection) Disconnect() {
 	}
 }
 
-func (db *DatabaseConnection) InsertWebPage(wp *models.WebPage) {
+func (db *DatabaseConnection) InsertWebPage(wp *models.WebPage, stats *metrics.CrawlerStats) bool {
+	stats.DBInsertAttempts++
 	if db.IsAccessible {
 		if db.Collection == nil {
 			logger.Error("mongo database collection `" + os.Getenv("MONGO_COLLECTION") + "` not found.")
-			return
+			stats.FailedInserts++
+			return false
 		}
 
 		result, err := db.Collection.InsertOne(context.Background(), wp)
@@ -53,9 +56,14 @@ func (db *DatabaseConnection) InsertWebPage(wp *models.WebPage) {
 			} else {
 				logger.Error(fmt.Sprintf("Failed to insert page: %v\n", err))
 			}
-			return
+			stats.FailedInserts++
+			return false
 		}
 
 		logger.Success(fmt.Sprintf("Inserted URL with _id: %s\n", result.InsertedID))
+		stats.DBInserted++
+		return true
 	}
+	stats.FailedInserts++
+	return false
 }

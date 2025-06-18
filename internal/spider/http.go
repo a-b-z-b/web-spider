@@ -6,9 +6,10 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"web-spider/internal/metrics"
 )
 
-func DownloadHTML(url string) (string, error) {
+func DownloadHTML(url string, stats *metrics.CrawlerStats) (string, error) {
 	resp, err := http.Get(url)
 	if err != nil {
 		return "", err
@@ -18,6 +19,7 @@ func DownloadHTML(url string) (string, error) {
 	// HANDLE NON-OK RESPONSES
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Non-OK HTTP status for %s: %d\n", url, resp.StatusCode)
+		stats.HTTPErrors++
 		return "", errors.New(errMsg)
 	}
 
@@ -32,6 +34,8 @@ func DownloadHTML(url string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+
+	stats.HTMLPages++
 
 	return string(body), nil
 }
