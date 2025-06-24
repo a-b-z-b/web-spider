@@ -1,0 +1,42 @@
+$ go run -race ./cmd/concurrent-spider/ -env=test -workers=16
+GOMAXPROCS: 8
+
+...
+LOGGING...
+...
+
+Total Procesed: `100`
+
+
+ℹ️ Raw Stats → TotalSeen: 100, UniqueEnqueued: 100, DBInserted: 85, DBInsertAttempts: 85, FailedInserts: 0, HTMLPages: 93, EmptyPages: 8, SkippedDuplicates: 10, HTTPErrors: 7
+ℹ️
+------------------BEGIN CRAWLING TIMING STATS PRINTING:
+Pages crawled per minute:
+0.016667 10
+0.033333 48
+0.050000 80
+0.066667 85
+
+Crawl to Queued Ratio per minute:
+0.016667 0.000000
+0.033333 0.000000
+0.050000 0.000000
+0.066667 0.000000
+
+ℹ️
+------------------END CRAWLING TIMING STATS PRINTING.
+ℹ️
+------------------BEGIN CRAWLING GENERAL STATS PRINTING:
+URL Uniqueness Ratio: 1.00
+Insertion Success Rate: 0.85
+Insert Failure Rate: 0.00
+HTML Page Ratio: 0.93
+Empty Page Rate: 0.09
+Duplicate Skip Rate: 0.10
+Error Rate (HTTP): 0.07
+Storage Yield: 0.85
+ℹ️
+------------------END CRAWLING GENERAL STATS PRINTING.
+
+
+Program Finished. It took: 4.748511146s
