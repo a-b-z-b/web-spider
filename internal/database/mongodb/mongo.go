@@ -41,11 +41,15 @@ func (db *DatabaseConnection) Disconnect() {
 }
 
 func (db *DatabaseConnection) InsertWebPage(wp *models.WebPage, stats *metrics.CrawlerStats) bool {
+	stats.MU.Lock()
 	stats.DBInsertAttempts++
+	stats.MU.Unlock()
 	if db.IsAccessible {
 		if db.Collection == nil {
 			logger.Error("mongo database collection `" + os.Getenv("MONGO_COLLECTION") + "` not found.")
+			stats.MU.Lock()
 			stats.FailedInserts++
+			stats.MU.Unlock()
 			return false
 		}
 
@@ -56,14 +60,20 @@ func (db *DatabaseConnection) InsertWebPage(wp *models.WebPage, stats *metrics.C
 			} else {
 				logger.Error(fmt.Sprintf("Failed to insert page: %v\n", err))
 			}
+			stats.MU.Lock()
 			stats.FailedInserts++
+			stats.MU.Unlock()
 			return false
 		}
 
 		logger.Success(fmt.Sprintf("Inserted URL with _id: %s\n", result.InsertedID))
+		stats.MU.Lock()
 		stats.DBInserted++
+		stats.MU.Unlock()
 		return true
 	}
+	stats.MU.Lock()
 	stats.FailedInserts++
+	stats.MU.Unlock()
 	return false
 }

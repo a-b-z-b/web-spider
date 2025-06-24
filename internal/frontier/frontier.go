@@ -27,6 +27,22 @@ func (q *Frontier) Dequeue() string {
 	return url
 }
 
+func (q *Frontier) TryDequeue() (string, bool) {
+	q.mu.Lock()
+	defer q.mu.Unlock()
+
+	if q.Length == 0 {
+		return "", false
+	}
+
+	url := q.Items[0]
+	q.Items = q.Items[1:]
+	q.Length--
+	q.TotalProcessed++
+
+	return url, true
+}
+
 func (q *Frontier) Size() int {
 	q.mu.Lock()
 	defer q.mu.Unlock()

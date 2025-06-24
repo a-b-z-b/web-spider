@@ -9,6 +9,7 @@ import (
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"log"
+	"runtime"
 	"strconv"
 	"time"
 	"web-spider/internal/database/mongodb"
@@ -21,6 +22,9 @@ import (
 )
 
 func main() {
+	runtime.GOMAXPROCS(8)
+	fmt.Println("GOMAXPROCS:", runtime.GOMAXPROCS(0))
+
 	env := flag.String("env", "prod", "Application environment.")
 	threshold := flag.Int("threshold", 100, "Maximum number of pages to crawl.")
 
@@ -81,7 +85,7 @@ func main() {
 	// STATS SETUP
 	crawlerStats := metrics.NewCrawlerStats()
 	done := make(chan bool)
-	ticker := time.NewTicker(10 * time.Second)
+	ticker := time.NewTicker(time.Second)
 
 	go func() {
 		for {
@@ -185,4 +189,5 @@ func main() {
 	))
 	crawlerStats.PrintTimingStats()
 	crawlerStats.PrintGeneralStats()
+	fmt.Printf("\n\nProgram Finished. It took: %v\n\n", time.Since(crawlerStats.StartedAt))
 }

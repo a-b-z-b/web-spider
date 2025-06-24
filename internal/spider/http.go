@@ -19,7 +19,9 @@ func DownloadHTML(url string, stats *metrics.CrawlerStats) (string, error) {
 	// HANDLE NON-OK RESPONSES
 	if resp.StatusCode != http.StatusOK {
 		errMsg := fmt.Sprintf("Non-OK HTTP status for %s: %d\n", url, resp.StatusCode)
+		stats.MU.Lock()
 		stats.HTTPErrors++
+		stats.MU.Unlock()
 		return "", errors.New(errMsg)
 	}
 
@@ -35,7 +37,9 @@ func DownloadHTML(url string, stats *metrics.CrawlerStats) (string, error) {
 		return "", err
 	}
 
+	stats.MU.Lock()
 	stats.HTMLPages++
+	stats.MU.Unlock()
 
 	return string(body), nil
 }

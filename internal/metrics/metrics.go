@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"fmt"
+	"sync"
 	"time"
 	"web-spider/internal/filter"
 	"web-spider/internal/frontier"
@@ -23,6 +24,7 @@ type CrawlerStats struct {
 	CrawledRatioPerMinute string
 	StartedAt             time.Time
 	EndedAt               time.Time
+	MU                    sync.Mutex
 }
 
 func NewCrawlerStats() *CrawlerStats {
@@ -30,42 +32,62 @@ func NewCrawlerStats() *CrawlerStats {
 }
 
 func (c *CrawlerStats) EndCrawl() {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	c.EndedAt = time.Now()
 }
 
 func (c *CrawlerStats) URLUniquenessRatio() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.UniqueEnqueued, c.TotalSeen)
 }
 
 func (c *CrawlerStats) InsertSuccessRate() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.DBInserted, c.UniqueEnqueued)
 }
 
 func (c *CrawlerStats) InsertFailureRate() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.FailedInserts, c.DBInsertAttempts)
 }
 
 func (c *CrawlerStats) HTMLPagesRatio() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.HTMLPages, c.TotalSeen)
 }
 
 func (c *CrawlerStats) EmptyPagesRate() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.EmptyPages, c.HTMLPages)
 }
 
 func (c *CrawlerStats) HTTPErrorRate() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.HTTPErrors, c.TotalSeen)
 }
 
 func (c *CrawlerStats) DuplicatesSkipRate() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.SkippedDuplicates, c.TotalSeen)
 }
 
 func (c *CrawlerStats) StorageYield() float64 {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	return utils.SafeDivide(c.DBInserted, c.TotalSeen)
 }
 
 func (c *CrawlerStats) CrawlingPerMinuteRate(q *frontier.Frontier, s *filter.UrlSet, t time.Time) {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	c.PagesPerMinute += fmt.Sprintf("%f %d\n", t.Sub(c.StartedAt).Minutes(), s.Size())
 	c.CrawledRatioPerMinute += fmt.Sprintf("%f %f\n", t.Sub(c.StartedAt).Minutes(), utils.SafeDivide(s.Size(), q.Size()))
 }
@@ -84,6 +106,8 @@ func (c *CrawlerStats) PrintGeneralStats() {
 }
 
 func (c *CrawlerStats) PrintTimingStats() {
+	c.MU.Lock()
+	defer c.MU.Unlock()
 	logger.Info("\n------------------BEGIN CRAWLING TIMING STATS PRINTING:")
 	fmt.Println("Pages crawled per minute:")
 	fmt.Println(c.PagesPerMinute)
