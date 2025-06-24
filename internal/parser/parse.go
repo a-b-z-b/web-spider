@@ -95,7 +95,8 @@ func isDescendantOfSkippableTag(n *html.Node) bool {
 	for p := n.Parent; p != nil; p = p.Parent {
 		if p.Type == html.ElementNode {
 			switch p.Data {
-			case "script", "style", "link", "head", "noscript", "template", "nav", "footer", "aside", "button":
+			case "script", "style", "link", "head", "noscript", "template", "nav", "footer", "aside", "button",
+				"svg", "audio", "video", "form", "input", "select", "header", "option", "iframe", "canvas":
 				return true
 			}
 		}
